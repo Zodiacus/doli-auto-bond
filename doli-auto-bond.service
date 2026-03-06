@@ -1,0 +1,9 @@
+[Unit]
+Description=DOLI Auto Bond
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=atinoco
+ExecStart=/usr/local/bin/doli-auto-bond
