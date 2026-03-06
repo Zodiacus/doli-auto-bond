@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONFIG_FILE="/etc/doli/auto-bond.conf"
+LOCK_FILE="/tmp/doli-auto-bond.lock"
+SUCCESS_LOG="/var/log/doli/auto-bond-success.log"
+LAST_SUCCESS_FILE="/var/lib/doli/auto-bond-last-success"
+
+source "$CONFIG_FILE"
+
+BOND_AMOUNT_PER_BOND="${BOND_AMOUNT_PER_BOND:-10}"
+MAX_BONDS_PER_RUN="${MAX_BONDS_PER_RUN:-1}"
+MIN_SECONDS_BETWEEN_BONDS="${MIN_SECONDS_BETWEEN_BONDS:-60}"
+
+echo "DOLI Auto Bond Check"
+echo "--------------------"
+
+exec 9>"$LOCK_FILE"
+flock -n 9 || { echo "Another run is already in progress."; exit 0; }
+
+status_output="$("$DOLI_BIN" producer status)"
+balance_output="$("$DOLI_BIN" balance)"
+
+status="$(awk -F':' '/Status:/ {gsub(/^ +/,"",$2); print $2; exit}' <<< "$status_output")"
+bond_count="$(awk -F':' '/Bond Count:/ {gsub(/^ +| +$/,"",$2); print $2; exit}' <<< "$status_output")"
+spendable="$(awk '/Spendable:/ {print $2; exit}' <<< "$balance_output")"
+bonded="$(awk '/Bonded:/ {print $2; exit}' <<< "$balance_output")"
+
+echo "Status: $status"
+echo "Bond Count: $bond_count"
+echo "Bonded: $bonded"
+echo "Spendable: $spendable"
+echo
+
+num_ge() {
+    awk -v a="$1" -v b="$2" 'BEGIN { exit !(a >= b) }'
+}
+
+num_gt() {
+    awk -v a="$1" -v b="$2" 'BEGIN { exit !(a > b) }'
+}
+
+min_int() {
+    awk -v a="$1" -v b="$2" 'BEGIN { print (a < b ? a : b) }'
+}
+
+if [[ "$status" != "active" ]]; then
+    echo "Producer not active. Exiting."
+    exit 0
+fi
+
+if num_ge "$bond_count" "$MAX_BOND_COUNT"; then
+    echo "Max bond count reached."
+    exit 0
+fi
+
+if num_ge "$bonded" "$MAX_TOTAL_BONDED"; then
+    echo "Max bonded amount reached."
+    exit 0
+fi
+
+if ! num_ge "$spendable" "$MIN_SPENDABLE"; then
+    echo "Spendable below threshold ($MIN_SPENDABLE)."
+    exit 0
+fi
+
+current_epoch="$(date +%s)"
+
+if [[ -f "$LAST_SUCCESS_FILE" ]]; then
+    last_success_epoch="$(cat "$LAST_SUCCESS_FILE" 2>/dev/null || true)"
+    if [[ "${last_success_epoch:-}" =~ ^[0-9]+$ ]]; then
+        seconds_since_last=$(( current_epoch - last_success_epoch ))
+        if (( seconds_since_last < MIN_SECONDS_BETWEEN_BONDS )); then
+            seconds_left=$(( MIN_SECONDS_BETWEEN_BONDS - seconds_since_last ))
+            echo "Cooldown active. Waiting ${seconds_left}s before next bond attempt."
+            exit 0
+        fi
+    fi
+fi
+
+bonds_by_spendable="$(awk -v s="$spendable" -v per="$BOND_AMOUNT_PER_BOND" 'BEGIN { printf "%d", s / per }')"
+bonds_by_count_cap="$(awk -v max="$MAX_BOND_COUNT" -v cur="$bond_count" 'BEGIN { printf "%d", max - cur }')"
+bonds_by_bonded_cap="$(awk -v max="$MAX_TOTAL_BONDED" -v cur="$bonded" -v per="$BOND_AMOUNT_PER_BOND" 'BEGIN { printf "%d", (max - cur) / per }')"
+
+bonds_to_add="$(min_int "$bonds_by_spendable" "$bonds_by_count_cap")"
+bonds_to_add="$(min_int "$bonds_to_add" "$bonds_by_bonded_cap")"
+bonds_to_add="$(min_int "$bonds_to_add" "$MAX_BONDS_PER_RUN")"
+
+if [[ "$bonds_to_add" -lt 1 ]]; then
+    echo "No full bonds can be added safely."
+    exit 0
+fi
+
+next_bond_count="$(awk -v cur="$bond_count" -v add="$bonds_to_add" 'BEGIN { printf "%.0f", cur + add }')"
+next_bonded="$(awk -v cur="$bonded" -v per="$BOND_AMOUNT_PER_BOND" -v add="$bonds_to_add" 'BEGIN { printf "%.8f", cur + (per * add) }')"
+
+if num_gt "$next_bond_count" "$MAX_BOND_COUNT"; then
+    echo "Next run would exceed bond count cap."
+    exit 0
+fi
+
+if num_gt "$next_bonded" "$MAX_TOTAL_BONDED"; then
+    echo "Next run would exceed bonded amount cap."
+    exit 0
+fi
+
+echo "Adding $bonds_to_add bond(s)..."
+
+old_bond_count="$bond_count"
+
+if "$DOLI_BIN" producer add-bond --count "$bonds_to_add"; then
+    sleep 2
+
+    new_status_output="$("$DOLI_BIN" producer status)"
+    new_bond_count="$(awk -F':' '/Bond Count:/ {gsub(/^ +| +$/,"",$2); print $2; exit}' <<< "$new_status_output")"
+
+    if [[ "$new_bond_count" =~ ^[0-9]+$ ]] && [[ "$old_bond_count" =~ ^[0-9]+$ ]] && (( new_bond_count > old_bond_count )); then
+        added_actual=$(( new_bond_count - old_bond_count ))
+
+        echo "Bond add successful."
+        echo "New bond count: $new_bond_count"
+
+        date +%s > "$LAST_SUCCESS_FILE"
+
+        printf '%s add-bond successful, added=%s, bond_count=%s\n' \
+        "$(date '+%Y-%m-%d %H:%M:%S')" \
+        "$added_actual" \
+        "$new_bond_count" >> "$SUCCESS_LOG"
+    else
+        echo "Bond command completed, but bond count did not increase yet."
+        echo "Old bond count: $old_bond_count"
+        echo "New bond count: $new_bond_count"
+    fi
+else
+    echo "Bond transaction failed."
+    exit 1
+fi
