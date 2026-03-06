@@ -1,82 +1,75 @@
-# DOLI Auto Bond
+DOLI Auto Bond
 
-Automatic bond compounding script for a **DOLI producer node**.
+Automatic bond compounding script for a DOLI producer node.
 
 This script periodically checks the wallet balance and automatically adds new bonds when enough spendable DOLI is available.
 
-It is designed to run safely with **systemd timers**, includes **cooldown protection**, and only records **successful bond increases**.
+The script runs using a systemd timer, includes cooldown protection, and records only successful bond increases.
 
----
+Features
 
-# Features
+Automatic compounding of rewards
 
-- Automatic compounding of rewards
-- Multi-bond support per run
-- Configurable bonding thresholds
-- Cooldown protection to prevent repeated bonding
-- Systemd timer integration
-- Success-only logging
-- Lock protection to prevent concurrent runs
+Multi-bond support per run
 
----
+Configurable bonding thresholds
 
-# Repository Contents
+Cooldown protection to prevent repeated bonding
 
+systemd timer integration
+
+Success-only logging
+
+Lock protection to prevent concurrent runs
+
+Repository Contents
 
 doli-auto-bond
-doli-auto-bond.service
-doli-auto-bond.timer
-auto-bond.conf.example
-README.md
-.gitignore
-
-
-File descriptions:
-
-doli-auto-bond  
 Main automation script.
 
-doli-auto-bond.service  
-Systemd service used to execute the script.
+doli-auto-bond.service
+systemd service used to execute the script.
 
-doli-auto-bond.timer  
-Systemd timer that runs the service periodically.
+doli-auto-bond.timer
+systemd timer that runs the service periodically.
 
-auto-bond.conf.example  
+auto-bond.conf.example
 Example configuration file.
 
----
+README
+Documentation file.
 
-# Requirements
+.gitignore
+Prevents sensitive files from being committed.
 
-- Linux server
-- systemd
-- DOLI node installed
-- Wallet already configured
-- Producer node running
+Requirements
 
----
+Linux server
+systemd
+DOLI node installed
+Wallet already configured
+Producer node running
 
-# Installation
+Installation
 
-## 1. Copy the script
+Copy the script
 
-```bash
 sudo cp doli-auto-bond /usr/local/bin/doli-auto-bond
 sudo chmod +x /usr/local/bin/doli-auto-bond
-2. Create configuration directory
+
+Create configuration directory
+
 sudo mkdir -p /etc/doli
 
-Copy the example configuration:
+Copy the example configuration
 
 sudo cp auto-bond.conf.example /etc/doli/auto-bond.conf
 
-Edit the configuration:
+Edit the configuration
 
 sudo nano /etc/doli/auto-bond.conf
-Configuration
 
-Example config:
+Configuration Example
 
 DOLI_BIN=/usr/bin/doli
 
@@ -89,130 +82,131 @@ MAX_TOTAL_BONDED=30000
 
 MIN_SECONDS_BETWEEN_BONDS=60
 
-Explanation:
+Configuration Options
 
 MIN_SPENDABLE
 Minimum spendable balance required before bonding.
 
 BOND_AMOUNT_PER_BOND
-DOLI required per bond.
+Amount of DOLI required per bond.
 
 MAX_BONDS_PER_RUN
-Maximum bonds the script can add in a single run.
+Maximum bonds the script can add in a single execution.
 
 MAX_BOND_COUNT
-Network limit for bonds.
+Maximum bond count allowed by the network.
 
 MAX_TOTAL_BONDED
-Network bonded amount limit.
+Maximum total bonded DOLI allowed.
 
 MIN_SECONDS_BETWEEN_BONDS
-Cooldown time between bonding attempts.
+Cooldown period between bonding attempts.
 
-Create required directories
+Create Required Directories
 
-The script needs directories for logs and cooldown tracking.
+The script requires directories for logs and cooldown tracking.
+
+Create log directory
 
 sudo mkdir -p /var/log/doli
 sudo touch /var/log/doli/auto-bond-success.log
 sudo chown atinoco:atinoco /var/log/doli/auto-bond-success.log
 
-Cooldown state directory:
+Create cooldown state directory
 
 sudo mkdir -p /var/lib/doli
 sudo chown atinoco:atinoco /var/lib/doli
-Install systemd service
 
-Copy the service file:
+Install systemd Service
 
 sudo cp doli-auto-bond.service /etc/systemd/system/
-Install timer
 
-Copy the timer file:
+Install systemd Timer
 
 sudo cp doli-auto-bond.timer /etc/systemd/system/
 
-Reload systemd:
+Reload systemd
 
 sudo systemctl daemon-reload
 
-Enable the timer:
+Enable the timer
 
 sudo systemctl enable --now doli-auto-bond.timer
-Verify the timer
+
+Verify the Timer
+
 systemctl list-timers | grep doli
 
-Example output:
+Example output
 
-NEXT                        LEFT       LAST                        UNIT
-Fri 2026-03-06 08:10:00     45s        Fri 2026-03-06 08:09:00     doli-auto-bond.timer
-Run manually
+NEXT LEFT LAST UNIT
+08:10:00 UTC 45s 08:09:00 UTC doli-auto-bond.timer
 
-You can trigger a run manually with:
+Run Manually
 
 sudo systemctl start doli-auto-bond.service
-Logs
-Success log
 
-Shows successful bond increases.
+Logs
+
+Success Log
 
 cat /var/log/doli/auto-bond-success.log
 
-Example:
+Example
 
 2026-03-06 07:42:11 add-bond successful, added=1, bond_count=46
 
-Watch live:
+Watch log live
 
 tail -f /var/log/doli/auto-bond-success.log
-Service logs
 
-Systemd captures script output.
-
-View logs:
+Service Logs
 
 journalctl -u doli-auto-bond.service
 
-Recent logs:
+Recent logs
 
 journalctl -u doli-auto-bond.service -n 50
 
-Watch live:
+Watch logs live
 
 journalctl -u doli-auto-bond.service -f
-Check timer status
-systemctl status doli-auto-bond.timer
-Stop automation
 
-Disable the timer:
+Check Timer Status
+
+systemctl status doli-auto-bond.timer
+
+Stop Automation
 
 sudo systemctl disable --now doli-auto-bond.timer
-Troubleshooting
-Script will not run
 
-Check permissions:
+Troubleshooting
+
+Script does not run
 
 chmod +x /usr/local/bin/doli-auto-bond
-Cooldown active
 
-If cooldown is active you may see:
+Cooldown active message
 
 Cooldown active. Waiting X seconds before next bond attempt.
 
-This prevents duplicate bond attempts.
+This prevents repeated bonding attempts.
 
 Verify producer status
+
 doli producer status
+
 Security Notes
 
-Do NOT commit:
+Do NOT commit the following files to the repository:
 
 wallet files
-
 private keys
-
 /etc/doli/auto-bond.conf
+log files
 
-logs
+Only commit the example configuration file.
 
-Only commit the example config.
+License
+
+Private repository intended for personal validator operations.
