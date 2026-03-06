@@ -1,28 +1,28 @@
-DOLI Auto Bond
+# DOLI Auto Bond
 
-Automatic bond compounding script for a DOLI producer node.
+Automatic bond compounding script for a **DOLI producer node**.
 
 This script periodically checks the wallet balance and automatically adds new bonds when enough spendable DOLI is available.
 
-It is designed to run safely with systemd timers, includes cooldown protection, and only records successful bond increases.
+It is designed to run safely with **systemd timers**, includes **cooldown protection**, and only records **successful bond increases**.
 
-Features
+---
 
-Automatic compounding of rewards
+# Features
 
-Multi-bond support per run
+- Automatic compounding of rewards
+- Multi-bond support per run
+- Configurable bonding thresholds
+- Cooldown protection to prevent repeated bonding
+- Systemd timer integration
+- Success-only logging
+- Lock protection to prevent concurrent runs
 
-Configurable bonding thresholds
+---
 
-Cooldown protection to prevent repeated bonding
+# Repository Contents
 
-Systemd timer integration
 
-Success-only logging
-
-Lock protection to prevent concurrent runs
-
-Repository Contents
 doli-auto-bond
 doli-auto-bond.service
 doli-auto-bond.timer
@@ -30,34 +30,38 @@ auto-bond.conf.example
 README.md
 .gitignore
 
+
 File descriptions:
 
-doli-auto-bond
+doli-auto-bond  
 Main automation script.
 
-doli-auto-bond.service
+doli-auto-bond.service  
 Systemd service used to execute the script.
 
-doli-auto-bond.timer
+doli-auto-bond.timer  
 Systemd timer that runs the service periodically.
 
-auto-bond.conf.example
+auto-bond.conf.example  
 Example configuration file.
 
-Requirements
+---
 
-Linux server
+# Requirements
 
-systemd
+- Linux server
+- systemd
+- DOLI node installed
+- Wallet already configured
+- Producer node running
 
-DOLI node installed
+---
 
-Wallet already configured
+# Installation
 
-Producer node running
+## 1. Copy the script
 
-Installation
-1. Copy the script
+```bash
 sudo cp doli-auto-bond /usr/local/bin/doli-auto-bond
 sudo chmod +x /usr/local/bin/doli-auto-bond
 2. Create configuration directory
@@ -212,7 +216,3 @@ private keys
 logs
 
 Only commit the example config.
-
-License
-
-Private repository intended for personal validator operations.
