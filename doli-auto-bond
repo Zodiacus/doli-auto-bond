@@ -108,7 +108,7 @@ echo "Adding $bonds_to_add bond(s)..."
 
 old_bond_count="$bond_count"
 
-if "$DOLI_BIN" producer add-bond --count "$bonds_to_add"; then
+if "$DOLI_BIN" producer add-bond --count "$bonds_to_add" -y; then
     sleep 2
 
     new_status_output="$("$DOLI_BIN" producer status)"
